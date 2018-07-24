@@ -6,93 +6,139 @@ import edu.princeton.cs.algs4.StdOut;
 import java.util.Comparator;
 
 public class Solver {
-    private class searchNode {
-        private int move;
-        private Board board;
-        private searchNode preNode;
+    private SearchNode current; // current search node
+    private boolean isSolvable;
 
-        public searchNode(Board b) {
-            board = b;
-            move = 0;
-            preNode = null;
+    // the class implements the compareTo() method for MinPQ
+    private class SearchNode implements Comparable<SearchNode>
+    {
+        private Board bd;
+        private SearchNode previous;
+        private int moves;
+        private int priority; // cache the priority to avoid repeated calculations
+        private boolean isInitParity; // is equal to initial parity
+
+        // this constructor is used for initail node and its twin
+        public SearchNode(Board bd, boolean isInitParity)
+        {
+            if (bd == null)
+                throw new NullPointerException("Null Board");
+            this.bd = bd;
+            this.moves = 0;
+            this.priority = this.bd.manhattan() + this.moves;
+            this.isInitParity = isInitParity;
+        }
+
+        // for the later nodes
+        public SearchNode(Board bd, SearchNode previous)
+        {
+            if (bd == null)
+                throw new NullPointerException("Null Board");
+            if (previous == null)
+                throw new NullPointerException("Null SearchNode");
+            this.bd = bd;
+            this.previous = previous;
+            this.moves = previous.moves + 1;
+            this.priority = this.bd.manhattan() + this.moves;
+            this.isInitParity = previous.isInitParity;
+        }
+
+        public int compareTo(SearchNode that)
+        {
+            // When two search nodes have the same Manhattan priority,
+            // break ties by comparing the Manhattan distances of the two boards.
+            if (this.priority == that.priority)
+                return this.bd.manhattan() - this.bd.manhattan();
+            else
+                return this.priority - that.priority;
         }
     }
-    private searchNode goal;
-    private class PriorityOrder implements Comparator<searchNode> {
-        @Override
-        public int compare(searchNode s1, searchNode s2) {
-            int priority1 = s1.board.manhattan() + s1.move;
-            int priority2 = s2.board.manhattan() + s2.move;
 
-            if         (priority1 > priority2) return 1;
-            else if (priority1 < priority2) return -1;
-            else                             return 0;
-        }
+
+    /**
+     * Find a solution to the initial board (using the A* algorithm).
+     *
+     * @param initial the initial Board
+     * @throws NullPointerException if initial Board is null
+     */
+    public Solver(Board initial)
+    {
+        if (initial == null) throw new NullPointerException("Null Board");
+
+        MinPQ<SearchNode> origPQ = new MinPQ<SearchNode>();
+
+        // isInitParity of initial is true, and another is false.
+        origPQ.insert(new SearchNode(initial, true)); // insert initial node and its twin
+        origPQ.insert(new SearchNode(initial.twin(), false));
+        while (true)
+        {
+            current = origPQ.delMin();
+            if (current.bd.isGoal()) break;
+            for (Board nb : current.bd.neighbors())
+                if (current.previous == null ||
+                        !nb.equals(current.previous.bd))
+                    origPQ.insert(new SearchNode(nb, current));
+        } // only one of the two nodes can lead to the goal board
+        isSolvable = current.isInitParity && current.bd.isGoal();
     }
-    public Solver(Board initial) {
-        PriorityOrder po = new PriorityOrder();
-        MinPQ<searchNode> pq = new MinPQ<searchNode>(po);
-        searchNode sn = new searchNode(initial);
 
-        PriorityOrder twinPo = new PriorityOrder();
-        MinPQ<searchNode> twinPq = new MinPQ<searchNode>(twinPo);
-        searchNode twinSn = new searchNode(initial.twin());
-        pq.insert(sn);
-        twinPq.insert(twinSn);
+    /**
+     * Determines whether the initial board is solvable?
+     *
+     * @return true if the initial board is solvable;
+     *         false otherwise.
+     */
+    public boolean isSolvable()
+    {
+        return this.isSolvable;
+    }
 
-        searchNode minNode = pq.delMin();
-        searchNode twinMinNode = twinPq.delMin();
-        while (!minNode.board.isGoal() && !twinMinNode.board.isGoal()) {
-            for (Board b : minNode.board.neighbors()) {
-                if ((minNode.preNode == null)
-                        || !b.equals(minNode.preNode.board)) {
-                    searchNode node = new searchNode(b);
-                    node.move = minNode.move + 1;
-                    node.preNode = minNode;
-                    pq.insert(node);
-                }
-            }
-            for (Board b : twinMinNode.board.neighbors()) {
-                if ((minNode.preNode == null)
-                        || !b.equals(twinMinNode.preNode.board)) {
-                    searchNode node = new searchNode(b);
-                    node.move = twinMinNode.move + 1;
-                    node.preNode = twinMinNode;
-                    twinPq.insert(node);
-                }
-            }
-            minNode = pq.delMin();
-            twinMinNode = twinPq.delMin();
-        }
+    /**
+     * Returns min number of moves to solve initial board; -1 if unsolvable.
+     *
+     * @return min number of moves to solve initial board; -1 if unsolvable
+     */
+    public int moves()
+    {
+        if (!isSolvable()) return -1;
+        else return current.moves;
+    }
 
-        if (minNode.board.isGoal())
-            goal = minNode;
-        else
-            goal = null;
-
-    }           // find a solution to the initial board (using the A* algorithm)
-    public boolean isSolvable() {
-        return goal != null;
-    }            // is the initial board solvable?
-    public int moves() {
-        return goal.move;
-    }                     // min number of moves to solve initial board; -1 if unsolvable
-    public Iterable<Board> solution() {
+    /**
+     * Returns sequence of boards in a shortest solution; null if unsolvable.
+     *
+     * @return sequence of boards in a shortest solution;
+     *         null if unsolvable.
+     */
+    public Iterable<Board> solution()
+    {
         if (!isSolvable()) return null;
-        Stack<Board> bS = new Stack<>();
-        for (searchNode s = goal; s != null; s = s.preNode)
-            bS.push(s.board);
-        return bS;
-    }      // sequence of boards in a shortest solution; null if unsolvable
 
-    public static void main(String[] args) {
-        // TODO Auto-generated method stub
+        Stack<Board> boards = new Stack<Board>();
+        SearchNode node = current; // another reference
+
+        while (node != null)
+        {
+            boards.push(node.bd);
+            node = node.previous;
+        }
+        return boards;
+    }
+
+    /**
+     * Unit tests the {@code solver} data type to
+     * solve a slider puzzle (given below).
+     *
+     * @param args the command-line arguments
+     */
+    public static void main(String[] args)
+    {
         // create initial board from file
         In in = new In(args[0]);
-        int N = in.readInt();
-        int[][] blocks = new int[N][N];
-        for (int i = 0; i < N; i++)
-            for (int j = 0; j < N; j++)
+        int n = in.readInt();
+        int[][] blocks = new int[n][n];
+        for (int i = 0; i < n; i++)
+            for (int j = 0; j < n; j++)
                 blocks[i][j] = in.readInt();
         Board initial = new Board(blocks);
 
@@ -102,7 +148,8 @@ public class Solver {
         // print solution to standard output
         if (!solver.isSolvable())
             StdOut.println("No solution possible");
-        else {
+        else
+        {
             StdOut.println("Minimum number of moves = " + solver.moves());
             for (Board board : solver.solution())
                 StdOut.println(board);
