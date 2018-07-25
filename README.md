@@ -27,3 +27,7 @@
 判断点是否共线
 ![](https://i.imgur.com/5ws5siL.png)
 ![](https://i.imgur.com/0N2v8Tx.png)
+
+## 4. Programming Assignment 4: 8puzzle
+
+![](https://i.imgur.com/gqJ0szA.png)
